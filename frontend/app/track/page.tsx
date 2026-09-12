@@ -1018,14 +1018,14 @@ export default function TrackPage() {
               aria-selected={trackingMethod === "trackingId"}
               aria-controls="panel-tracking-id"
               onClick={() => handleTabSwitch("trackingId")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs sm:text-sm font-bold transition ${
+              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 sm:px-4 rounded-lg text-[11px] sm:text-xs md:text-sm font-bold text-center transition ${
                 trackingMethod === "trackingId"
                   ? "bg-[#123B5D] text-white shadow-sm"
                   : "text-[#667085] hover:text-[#123B5D]"
               }`}
             >
-              <FileText className="h-4 w-4 text-[#F39A32]" />
-              <span>{t("trackPage.trackButton") || "Track by Grievance ID"}</span>
+              <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#F39A32] shrink-0" />
+              <span className="truncate sm:overflow-visible">{t("trackPage.trackButton") || "Track by Grievance ID"}</span>
             </button>
 
             <button
@@ -1035,14 +1035,14 @@ export default function TrackPage() {
               aria-selected={trackingMethod === "contactDetails"}
               aria-controls="panel-contact-details"
               onClick={() => handleTabSwitch("contactDetails")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs sm:text-sm font-bold transition ${
+              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 sm:px-4 rounded-lg text-[11px] sm:text-xs md:text-sm font-bold text-center transition ${
                 trackingMethod === "contactDetails"
                   ? "bg-[#123B5D] text-white shadow-sm"
                   : "text-[#667085] hover:text-[#123B5D]"
               }`}
             >
-              <User className="h-4 w-4 text-[#F39A32]" />
-              <span>Citizen Name + Mobile Number</span>
+              <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#F39A32] shrink-0" />
+              <span className="truncate sm:overflow-visible">Name + Contact</span>
             </button>
           </div>
 

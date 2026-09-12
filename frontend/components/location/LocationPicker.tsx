@@ -23,6 +23,9 @@ export interface LocationPickerProps {
   onChange: (address: string, lat?: number, lng?: number) => void;
   className?: string;
   required?: boolean;
+  id?: string;
+  inputRef?: React.Ref<HTMLInputElement>;
+  hasError?: boolean;
 }
 
 // Known postal code localities in Pune region to ensure specific localities (e.g. Alandi, Charoli)
@@ -242,6 +245,9 @@ export default function LocationPicker({
   onChange,
   className = "",
   required = true,
+  id,
+  inputRef,
+  hasError = false,
 }: LocationPickerProps) {
   const { t } = useTranslation();
   const [isLocating, setIsLocating] = useState(false);
@@ -466,6 +472,8 @@ export default function LocationPicker({
       {/* Input container with map pin icon and search arrow button */}
       <div className="relative">
         <input
+          id={id || "location-input"}
+          ref={inputRef}
           type="text"
           value={value}
           required={required}
@@ -480,7 +488,11 @@ export default function LocationPicker({
             t("reportPage.locationPlaceholder") ||
             "e.g. Baner Road near Balewadi Phata, or Kothrud near Karve Statue"
           }
-          className="w-full rounded-xl border border-[#E9E9E9] pl-4 pr-24 py-3 text-xs sm:text-sm text-[#1F2933] placeholder-[#667085] focus:border-[#1F5E91] focus:outline-none focus:ring-1 focus:ring-[#1F5E91] bg-white transition"
+          className={`w-full rounded-xl border pl-4 pr-24 py-3 text-xs sm:text-sm text-[#1F2933] placeholder-[#667085] bg-white transition ${
+            hasError
+              ? "border-rose-400 ring-2 ring-rose-200 focus:border-rose-500 focus:ring-rose-300"
+              : "border-[#E9E9E9] focus:border-[#1F5E91] focus:outline-none focus:ring-1 focus:ring-[#1F5E91]"
+          }`}
         />
 
         {/* Action button group: [📍] [→] */}

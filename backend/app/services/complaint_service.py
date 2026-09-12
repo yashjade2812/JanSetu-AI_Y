@@ -4,12 +4,15 @@ Handles submission, AI extraction, clarification, and deterministic ticket creat
 """
 
 import json
+import logging
 import random
 import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_, func, text
+
+logger = logging.getLogger(__name__)
 
 from app.models.complaint import ComplaintModel
 from app.models.ticket import TicketModel
@@ -28,15 +31,112 @@ from app.ai.pipeline.orchestrator import orchestrator
 from app.rules.sla_policy import calculate_deadlines, evaluate_sla_status
 from app.rules.escalation_rules import check_auto_escalation
 from app.services.contribution_service import contribution_service
+from app.rules.mandatory_validation import (
+    validate_complaint_submission,
+    MandatoryValidationException,
+)
 
 
 class ComplaintService:
+    async def _generate_next_tracking_number(
+        self,
+        db: AsyncSession,
+        year: int = 2026,
+        city_code: str = "PUN",
+    ) -> str:
+        """
+        Atomically generates a unique, sequential tracking number (e.g., 'JS-2026-PUN-00180').
+        Uses PostgreSQL native SEQUENCE ('complaint_tracking_seq') for atomic, concurrency-safe
+        generation, with fallback synchronization against existing complaint records.
+        """
+        dialect_name = ""
+        try:
+            if hasattr(db, "bind") and db.bind:
+                dialect_name = db.bind.dialect.name
+            elif hasattr(db, "get_bind"):
+                bind = db.get_bind()
+                if bind:
+                    dialect_name = bind.dialect.name
+        except Exception:
+            pass
+
+        next_val = None
+
+        if "postgres" in dialect_name:
+            try:
+                res = await db.execute(text("SELECT nextval('complaint_tracking_seq');"))
+                next_val = res.scalar()
+            except Exception as seq_err:
+                logger.warning(f"complaint_tracking_seq nextval failed, ensuring sequence exists: {seq_err}")
+                await db.execute(text("CREATE SEQUENCE IF NOT EXISTS complaint_tracking_seq START WITH 101;"))
+                await db.execute(text("""
+                    SELECT setval('complaint_tracking_seq', (
+                        SELECT COALESCE(
+                            GREATEST(
+                                MAX(
+                                    CASE 
+                                        WHEN tracking_number ~ 'JS-[0-9]{4}-[A-Z]+-[0-9]+'
+                                        THEN CAST(SPLIT_PART(tracking_number, '-', 4) AS BIGINT)
+                                        ELSE 100
+                                    END
+                                ),
+                                100
+                            ),
+                            100
+                        )
+                        FROM complaints
+                    ), true);
+                """))
+                res = await db.execute(text("SELECT nextval('complaint_tracking_seq');"))
+                next_val = res.scalar()
+        else:
+            # SQLite / Test / other dialect fallback
+            await db.execute(text("CREATE TABLE IF NOT EXISTS complaint_tracking_counter (id INTEGER PRIMARY KEY, last_val INTEGER);"))
+            res = await db.execute(text("SELECT last_val FROM complaint_tracking_counter WHERE id = 1;"))
+            row = res.fetchone()
+            if row is None:
+                comp_res = await db.execute(select(ComplaintModel.tracking_number))
+                all_t = [r[0] for r in comp_res.fetchall()]
+                max_val = 100
+                for t in all_t:
+                    parts = str(t).split("-")
+                    if len(parts) >= 4 and parts[-1].isdigit():
+                        max_val = max(max_val, int(parts[-1]))
+                await db.execute(text(f"INSERT OR REPLACE INTO complaint_tracking_counter (id, last_val) VALUES (1, {max_val});"))
+            
+            await db.execute(text("UPDATE complaint_tracking_counter SET last_val = last_val + 1 WHERE id = 1;"))
+            res = await db.execute(text("SELECT last_val FROM complaint_tracking_counter WHERE id = 1;"))
+            next_val = res.scalar()
+
+        if next_val is None:
+            comp_res = await db.execute(select(ComplaintModel.tracking_number))
+            all_t = [r[0] for r in comp_res.fetchall()]
+            max_val = 100
+            for t in all_t:
+                parts = str(t).split("-")
+                if len(parts) >= 4 and parts[-1].isdigit():
+                    max_val = max(max_val, int(parts[-1]))
+            next_val = max_val + 1
+
+        # Defense-in-depth: Ensure candidate does not collide with any existing record
+        while True:
+            candidate = f"JS-{year}-{city_code}-{next_val:05d}"
+            existing = await db.execute(select(ComplaintModel.id).where(ComplaintModel.tracking_number == candidate))
+            if not existing.scalar_one_or_none():
+                return candidate
+            logger.warning(f"Candidate tracking number {candidate} already exists, advancing sequence...")
+            if "postgres" in dialect_name:
+                res = await db.execute(text("SELECT nextval('complaint_tracking_seq');"))
+                next_val = res.scalar()
+            else:
+                await db.execute(text("UPDATE complaint_tracking_counter SET last_val = last_val + 1 WHERE id = 1;"))
+                res = await db.execute(text("SELECT last_val FROM complaint_tracking_counter WHERE id = 1;"))
+                next_val = res.scalar()
+
     async def create_complaint(self, data: ComplaintCreate, db: AsyncSession, citizen_id: Optional[str] = None) -> Dict[str, Any]:
         """Processes intake, runs AI extraction, and creates deterministic service ticket."""
-        # 1. Generate unique human-readable tracking number
-        count_res = await db.execute(select(func.count(ComplaintModel.id)))
-        total_count = count_res.scalar() or 0
-        tracking_number = f"JS-2026-PUN-{total_count + 101:05d}"
+        # 1. Generate unique human-readable tracking number atomically
+        tracking_number = await self._generate_next_tracking_number(db)
 
         # 2. Run AI Analysis
         ai_res = await orchestrator.analyze_complaint(data.raw_text, data.preferred_language)
@@ -53,10 +153,27 @@ class ComplaintService:
         dept_id = ai_res["department"]
         is_emergency = (priority == "P0")
 
+        # 2.5 Strict Mandatory Field Validation
+        val_res = validate_complaint_submission(
+            data={
+                "raw_text": data.raw_text,
+                "location_name": final_location,
+                "complaint_type": ai_res.get("summary") or ai_res.get("complaint_type"),
+            },
+            department=dept_id,
+            is_emergency=is_emergency,
+        )
+
+        if not val_res["can_submit"] and not is_emergency:
+            raise MandatoryValidationException(
+                invalid_fields=val_res["invalid_fields"],
+                message="Please complete all mandatory information before submitting your complaint.",
+            )
+
         # 3. Determine Initial Ticket Status
         if is_emergency:
             initial_status = "ASSIGNED"  # P0 emergency bypass: route immediately
-        elif ai_res.get("missing_fields"):
+        elif not val_res["can_submit"]:
             initial_status = "NEEDS_CLARIFICATION"
         else:
             initial_status = "ASSIGNED"
@@ -65,135 +182,149 @@ class ComplaintService:
         submitted_time = to_ist_naive(getattr(data, "client_timestamp", None)) or get_ist_now()
         loc_str = resolved_input_loc
 
-        # 4. Save Complaint
-        complaint = ComplaintModel(
-            tracking_number=tracking_number,
-            citizen_id=citizen_id,
-            citizen_name=data.citizen_name,
-            citizen_phone=data.citizen_phone,
-            citizen_email=data.citizen_email,
-            preferred_language=data.preferred_language,
-            raw_text=data.raw_text,
-            input_channel=data.input_channel,
-            location_text=loc_str,
-            latitude=data.latitude,
-            longitude=data.longitude,
-            audio_url=data.audio_url,
-            image_url=data.image_url,
-            status=initial_status,
-            created_at=submitted_time,
-            updated_at=submitted_time,
-        )
-        db.add(complaint)
-        await db.flush()
-
-        # Record initial citizen timeline update
-        update_log = ComplaintUpdateModel(
-            complaint_id=complaint.id,
-            actor_id=citizen_id,
-            actor_role="CITIZEN" if citizen_id else "PUBLIC",
-            status=initial_status,
-            message=f"Grievance recorded with tracking ID {tracking_number} and routed to {dept_id}.",
-            internal_note=None,
-            created_at=submitted_time,
-        )
-        db.add(update_log)
-
-        # Award Civic Credits if citizen is authenticated (+10 for valid complaint)
-        if citizen_id:
-            await contribution_service.award_credits(
-                user_id=citizen_id,
-                event_type="VALID_COMPLAINT",
-                credits=10,
-                reference_id=str(complaint.id),
-                description=f"Civic grievance registered: {tracking_number}",
-                db=db,
+        try:
+            # 4. Save Complaint
+            complaint = ComplaintModel(
+                tracking_number=tracking_number,
+                citizen_id=citizen_id,
+                citizen_name=data.citizen_name,
+                citizen_phone=data.citizen_phone,
+                citizen_email=data.citizen_email,
+                preferred_language=data.preferred_language,
+                raw_text=data.raw_text,
+                input_channel=data.input_channel,
+                location_text=loc_str,
+                latitude=data.latitude,
+                longitude=data.longitude,
+                audio_url=data.audio_url,
+                image_url=data.image_url,
+                status=initial_status,
+                created_at=submitted_time,
+                updated_at=submitted_time,
             )
+            db.add(complaint)
+            await db.flush()
 
-        # 5. Save Ticket
-        ticket = TicketModel(
-            complaint_id=complaint.id,
-            department_id=dept_id,
-            status=initial_status,
-            priority=priority,
-            severity=ai_res.get("severity", priority),
-            urgency=ai_res.get("urgency", priority),
-            sentiment_score=ai_res.get("sentiment_score", 0.0),
-            issue_summary=ai_res.get("summary", "Civic Grievance"),
-            category=ai_res.get("complaint_type", "general"),
-            location_name=final_location,
-            ward="Ward 12 (Pune West)",
-            latitude=data.latitude,
-            longitude=data.longitude,
-            is_emergency=is_emergency,
-            is_escalated=is_emergency,
-            escalation_reason="P0 Emergency Auto-Escalation" if is_emergency else None,
-            created_at=submitted_time,
-            updated_at=submitted_time,
-        )
-        db.add(ticket)
-        await db.flush()
+            # Record initial citizen timeline update
+            update_log = ComplaintUpdateModel(
+                complaint_id=complaint.id,
+                actor_id=citizen_id,
+                actor_role="CITIZEN" if citizen_id else "PUBLIC",
+                status=initial_status,
+                message=f"Grievance recorded with tracking ID {tracking_number} and routed to {dept_id}.",
+                internal_note=None,
+                created_at=submitted_time,
+            )
+            db.add(update_log)
 
-        # 6. Save AI Analysis
-        analysis = AIAnalysisModel(
-            complaint_id=complaint.id,
-            ticket_id=ticket.id,
-            detected_language=ai_res.get("detected_language", data.preferred_language),
-            extracted_issue=ai_res.get("summary", ""),
-            extracted_location=final_location,
-            extracted_duration=ai_res.get("extracted_duration"),
-            recommended_department=dept_id,
-            recommended_priority=priority,
-            recommended_actions=json.dumps(ai_res.get("recommended_actions", [])),
-            actionability_score=1.0 if not ai_res.get("missing_fields") else 0.5,
-            missing_fields=json.dumps(ai_res.get("missing_fields", [])),
-            clarification_questions=json.dumps(ai_res.get("clarification_questions", [])),
-            confidence_score=ai_res.get("confidence", 0.9),
-            confidence_level=ai_res.get("confidence_level", "HIGH"),
-            field_certainties=json.dumps(ai_res.get("field_certainties", {})),
-            citizen_response_draft=ai_res.get("citizen_response", ""),
-            explanation=f"{ai_res.get('priority_reason', '')} | {ai_res.get('department_reason', '')}",
-            raw_model_response=json.dumps(ai_res),
-            created_at=submitted_time,
-        )
-        db.add(analysis)
+            # Award Civic Credits if citizen is authenticated (+10 for valid complaint)
+            if citizen_id:
+                await contribution_service.award_credits(
+                    user_id=citizen_id,
+                    event_type="VALID_COMPLAINT",
+                    credits=10,
+                    reference_id=str(complaint.id),
+                    description=f"Civic grievance registered: {tracking_number}",
+                    db=db,
+                )
 
-        # 7. Create SLA Record
-        resp_dl, res_dl = calculate_deadlines(priority, start_time=submitted_time)
-        sla = SLAModel(
-            ticket_id=ticket.id,
-            priority=priority,
-            response_deadline=resp_dl,
-            resolution_deadline=res_dl,
-            status="PAUSED" if initial_status == "NEEDS_CLARIFICATION" else "WITHIN_SLA",
-            is_paused=(initial_status == "NEEDS_CLARIFICATION"),
-            paused_at=submitted_time if initial_status == "NEEDS_CLARIFICATION" else None,
-            created_at=submitted_time,
-            updated_at=submitted_time,
-        )
-        db.add(sla)
+            # 5. Save Ticket
+            ticket = TicketModel(
+                complaint_id=complaint.id,
+                department_id=dept_id,
+                status=initial_status,
+                priority=priority,
+                severity=ai_res.get("severity", priority),
+                urgency=ai_res.get("urgency", priority),
+                sentiment_score=ai_res.get("sentiment_score", 0.0),
+                issue_summary=ai_res.get("summary", "Civic Grievance"),
+                category=ai_res.get("complaint_type", "general"),
+                location_name=final_location,
+                ward="Ward 12 (Pune West)",
+                latitude=data.latitude,
+                longitude=data.longitude,
+                is_emergency=is_emergency,
+                is_escalated=is_emergency,
+                escalation_reason="P0 Emergency Auto-Escalation" if is_emergency else None,
+                created_at=submitted_time,
+                updated_at=submitted_time,
+            )
+            db.add(ticket)
+            await db.flush()
 
-        # 8. Create Clarification Request if needed
-        if initial_status == "NEEDS_CLARIFICATION" and ai_res.get("clarification_questions"):
-            clarif = ClarificationModel(
+            # 6. Save AI Analysis
+            analysis = AIAnalysisModel(
                 complaint_id=complaint.id,
                 ticket_id=ticket.id,
-                sender_type="AI",
-                question=ai_res["clarification_questions"][0],
-                requested_field="location",
+                detected_language=ai_res.get("detected_language", data.preferred_language),
+                extracted_issue=ai_res.get("summary", ""),
+                extracted_location=final_location,
+                extracted_duration=ai_res.get("extracted_duration"),
+                recommended_department=dept_id,
+                recommended_priority=priority,
+                recommended_actions=json.dumps(ai_res.get("recommended_actions", [])),
+                actionability_score=1.0 if not ai_res.get("missing_fields") else 0.5,
+                missing_fields=json.dumps(ai_res.get("missing_fields", [])),
+                clarification_questions=json.dumps(ai_res.get("clarification_questions", [])),
+                confidence_score=ai_res.get("confidence", 0.9),
+                confidence_level=ai_res.get("confidence_level", "HIGH"),
+                field_certainties=json.dumps(ai_res.get("field_certainties", {})),
+                citizen_response_draft=ai_res.get("citizen_response", ""),
+                explanation=f"{ai_res.get('priority_reason', '')} | {ai_res.get('department_reason', '')}",
+                raw_model_response=json.dumps(ai_res),
+                created_at=submitted_time,
             )
-            db.add(clarif)
+            db.add(analysis)
 
-        # 9. Audit Log
-        audit = AuditLogModel(
-            entity_name="complaint",
-            entity_id=str(complaint.id),
-            action="CREATED",
-            actor_type="CITIZEN",
-            new_state=json.dumps({"status": initial_status, "priority": priority, "department": dept_id}),
-        )
-        db.add(audit)
-        await db.commit()
+            # 7. Create SLA Record
+            resp_dl, res_dl = calculate_deadlines(priority, start_time=submitted_time)
+            sla = SLAModel(
+                ticket_id=ticket.id,
+                priority=priority,
+                response_deadline=resp_dl,
+                resolution_deadline=res_dl,
+                status="PAUSED" if initial_status == "NEEDS_CLARIFICATION" else "WITHIN_SLA",
+                is_paused=(initial_status == "NEEDS_CLARIFICATION"),
+                paused_at=submitted_time if initial_status == "NEEDS_CLARIFICATION" else None,
+                created_at=submitted_time,
+                updated_at=submitted_time,
+            )
+            db.add(sla)
+
+            # 8. Create Clarification Request if needed
+            unresolved = val_res.get("first_unresolved")
+            if (initial_status == "NEEDS_CLARIFICATION" or (is_emergency and not val_res["can_submit"])) and unresolved:
+                clarif = ClarificationModel(
+                    complaint_id=complaint.id,
+                    ticket_id=ticket.id,
+                    sender_type="AI",
+                    question=unresolved.get("question") or (ai_res.get("clarification_questions", [""])[0] if ai_res.get("clarification_questions") else "Please provide the exact location."),
+                    requested_field=unresolved.get("field", "location"),
+                )
+                db.add(clarif)
+            elif initial_status == "NEEDS_CLARIFICATION" and ai_res.get("clarification_questions"):
+                clarif = ClarificationModel(
+                    complaint_id=complaint.id,
+                    ticket_id=ticket.id,
+                    sender_type="AI",
+                    question=ai_res["clarification_questions"][0],
+                    requested_field="location",
+                )
+                db.add(clarif)
+
+            # 9. Audit Log
+            audit = AuditLogModel(
+                entity_name="complaint",
+                entity_id=str(complaint.id),
+                action="CREATED",
+                actor_type="CITIZEN",
+                new_state=json.dumps({"status": initial_status, "priority": priority, "department": dept_id}),
+            )
+            db.add(audit)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
 
         return {
             "id": str(complaint.id),

@@ -40,6 +40,13 @@ import {
 import { DEPARTMENTS } from "../../lib/constants";
 import { formatDateIST } from "../../lib/date";
 import ComplaintLocationCard from "../../components/location/ComplaintLocationCard";
+import {
+  PriorityBadge,
+  StatusBadge,
+  SLABadge,
+  DashboardMetricCard,
+  EmptyState,
+} from "../../components/ui";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -209,7 +216,7 @@ export default function AdminPage() {
         );
       case "Resolved":
         return (
-          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 text-emerald-700 px-2 py-0.5 font-bold text-[10px] border border-emerald-200">
+          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 text-emerald-700 px-2.5 py-0.5 font-bold text-[10px] border border-emerald-200">
             <BadgeCheck className="h-2.5 w-2.5 text-emerald-600" />
             Resolved
           </span>
@@ -265,62 +272,47 @@ export default function AdminPage() {
         </div>
 
         {/* 1. Executive KPI Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total</span>
-            <span className="text-2xl font-black text-slate-900 mt-1 block">
-              {metrics?.total_complaints || 0}
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block">In Progress</span>
-            <span className="text-2xl font-black text-blue-900 mt-1 block">
-              {metrics?.in_progress || 0}
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">Resolved</span>
-            <span className="text-2xl font-black text-emerald-900 mt-1 block">
-              {metrics?.resolved || 0}
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 block">P0 Emergency</span>
-            <span className="text-2xl font-black text-rose-700 mt-1 block">
-              {metrics?.critical_p0_count || 0}
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">SLA At Risk</span>
-            <span className="text-2xl font-black text-amber-700 mt-1 block">
-              {metrics?.sla_at_risk_count || 0}
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-red-300 bg-red-50 p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 block">SLA Breached</span>
-            <span className="text-2xl font-black text-red-700 mt-1 block">
-              {metrics?.sla_breached_count || 0}
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 block">Active Incidents</span>
-            <span className="text-2xl font-black text-purple-900 mt-1 block">
-              {metrics?.active_incidents || incidents.length}
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Resolution %</span>
-            <span className="text-2xl font-black text-slate-900 mt-1 block">
-              {metrics?.resolution_rate || 100}%
-            </span>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+          <DashboardMetricCard
+            label="Total"
+            value={metrics?.total_complaints || 0}
+            variant="neutral"
+          />
+          <DashboardMetricCard
+            label="In Progress"
+            value={metrics?.in_progress || 0}
+            variant="blue"
+          />
+          <DashboardMetricCard
+            label="Resolved"
+            value={metrics?.resolved || 0}
+            variant="success"
+          />
+          <DashboardMetricCard
+            label="P0 Critical"
+            value={metrics?.critical_p0_count || 0}
+            variant="critical"
+          />
+          <DashboardMetricCard
+            label="SLA At Risk"
+            value={metrics?.sla_at_risk_count || 0}
+            variant="warning"
+          />
+          <DashboardMetricCard
+            label="SLA Breached"
+            value={metrics?.sla_breached_count || 0}
+            variant="critical"
+          />
+          <DashboardMetricCard
+            label="Incidents"
+            value={metrics?.active_incidents || incidents.length}
+            variant="purple"
+          />
+          <DashboardMetricCard
+            label="Resolution"
+            value={`${metrics?.resolution_rate || 100}%`}
+            variant="neutral"
+          />
         </div>
 
         {/* 2. Department Workload Grid */}
@@ -460,95 +452,150 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Tickets Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="py-3 px-4">Tracking ID</th>
-                  <th className="py-3 px-4">Summary</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Priority</th>
-                  <th className="py-3 px-4">Assignment</th>
-                  <th className="py-3 px-4">Staff</th>
-                  <th className="py-3 px-4">SLA State</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {displayedTickets.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-8 text-slate-400">
-                      No complaints match the selected filters.
-                    </td>
-                  </tr>
-                ) : (
-                  displayedTickets.map((t) => (
-                    <tr
-                      key={t.id}
-                      onClick={() => handleOpenTicketDetail(t.id)}
-                      className="hover:bg-indigo-50/40 cursor-pointer transition"
-                    >
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600 whitespace-nowrap">
-                        {t.tracking_number}
-                      </td>
-                      <td className="py-3 px-4 max-w-xs truncate font-semibold text-slate-900">
-                        {t.issue_summary}
-                        {t.location_name && (
-                          <span className="block text-[11px] text-slate-400 font-normal truncate">
-                            {t.location_name}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                        {t.department_id.replace("_", " ")}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {getPriorityBadge(t.priority)}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {getAssignmentBadge(t.assignment_status || (t.assigned_officer_id ? "Assigned" : "Unassigned"))}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {t.assigned_officer_name ? (
-                          <div className="font-semibold text-slate-800 truncate max-w-[130px]">
-                            {t.assigned_officer_name}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap font-semibold">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[11px] ${
-                            t.sla?.status === "BREACHED"
-                              ? "bg-rose-100 text-rose-800"
-                              : t.sla?.status === "AT_RISK"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {t.sla?.status || "WITHIN_SLA"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenTicketDetail(t.id);
-                          }}
-                          className="inline-flex items-center gap-1 rounded bg-slate-100 hover:bg-indigo-600 hover:text-white px-2.5 py-1 text-[11px] font-bold text-slate-700 transition"
-                        >
-                          <Eye className="h-3 w-3" />
-                          <span>Manage</span>
-                        </button>
-                      </td>
+          {/* Tickets Table & Mobile Card View */}
+          {displayedTickets.length === 0 ? (
+            <EmptyState
+              title="No complaints match filters"
+              description="Try adjusting your department, status, priority, assignment, or search query to find relevant complaints."
+              actionText="Clear All Filters"
+              onAction={() => {
+                setSelectedDept("");
+                setSelectedStatus("");
+                setSelectedPriority("");
+                setAssignmentFilter("");
+                setSearchQuery("");
+              }}
+            />
+          ) : (
+            <>
+              {/* Desktop / Tablet Compact Table */}
+              <div className="responsive-table-container custom-scrollbar hidden md:block rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs min-w-[760px]">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="py-2.5 px-3.5">Tracking ID</th>
+                      <th className="py-2.5 px-3.5">Summary & Location</th>
+                      <th className="py-2.5 px-3.5">Department</th>
+                      <th className="py-2.5 px-3.5">Priority</th>
+                      <th className="py-2.5 px-3.5">Assignment</th>
+                      <th className="py-2.5 px-3.5">Staff</th>
+                      <th className="py-2.5 px-3.5">Status</th>
+                      <th className="py-2.5 px-3.5">SLA State</th>
+                      <th className="py-2.5 px-3.5 text-right">Action</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {displayedTickets.map((t) => (
+                      <tr
+                        key={t.id}
+                        onClick={() => handleOpenTicketDetail(t.id)}
+                        className="hover:bg-slate-50/80 cursor-pointer transition"
+                      >
+                        <td className="py-2.5 px-3.5 font-mono font-bold text-indigo-600 whitespace-nowrap">
+                          {t.tracking_number}
+                        </td>
+                        <td className="py-2.5 px-3.5 max-w-xs truncate font-semibold text-slate-900">
+                          <span>{t.issue_summary}</span>
+                          {t.location_name && (
+                            <span className="block text-[11px] text-slate-400 font-normal truncate mt-0.5">
+                              {t.location_name}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-700 whitespace-nowrap font-medium">
+                          {t.department_id.replace("_", " ")}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <PriorityBadge priority={t.priority} size="sm" />
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          {getAssignmentBadge(t.assignment_status || (t.assigned_officer_id ? "Assigned" : "Unassigned"))}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          {t.assigned_officer_name ? (
+                            <div className="font-semibold text-slate-800 truncate max-w-[130px]">
+                              {t.assigned_officer_name}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">Unassigned</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <StatusBadge status={t.status} size="sm" />
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <SLABadge status={t.sla?.status} size="sm" />
+                        </td>
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenTicketDetail(t.id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-md bg-slate-100 hover:bg-indigo-600 hover:text-white px-2.5 py-1 text-[11px] font-bold text-slate-700 transition"
+                          >
+                            <Eye className="h-3 w-3" />
+                            <span>Manage</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Responsive Cards (< md) */}
+              <div className="block md:hidden space-y-3">
+                {displayedTickets.map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => handleOpenTicketDetail(t.id)}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-indigo-300 transition cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="font-mono text-xs font-bold text-indigo-600">
+                        {t.tracking_number}
+                      </span>
+                      <PriorityBadge priority={t.priority} size="sm" />
+                    </div>
+                    <h3 className="font-bold text-xs text-slate-900 line-clamp-2">
+                      {t.issue_summary}
+                    </h3>
+                    {t.location_name && (
+                      <p className="text-[11px] text-slate-500 mt-1 truncate">
+                        📍 {t.location_name}
+                      </p>
+                    )}
+                    <div className="mt-2 text-xs text-slate-600 flex items-center justify-between">
+                      <span className="font-medium">{t.department_id.replace("_", " ")}</span>
+                      {getAssignmentBadge(t.assignment_status || (t.assigned_officer_id ? "Assigned" : "Unassigned"))}
+                    </div>
+                    {t.assigned_officer_name && (
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        Staff: <span className="font-semibold text-slate-700">{t.assigned_officer_name}</span>
+                      </div>
+                    )}
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <StatusBadge status={t.status} size="sm" />
+                        <SLABadge status={t.sla?.status} size="sm" />
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenTicketDetail(t.id);
+                        }}
+                        className="inline-flex items-center gap-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 text-[11px] font-bold transition"
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span>Manage</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* 4. Clustered Incidents Panel */}
@@ -590,7 +637,7 @@ export default function AdminPage() {
                   <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                     {selectedTicket.tracking_number}
                   </span>
-                  {getPriorityBadge(selectedTicket.priority)}
+                  <PriorityBadge priority={selectedTicket.priority} size="sm" />
                 </div>
                 <h2 className="text-xl font-black text-slate-900">{selectedTicket.issue_summary}</h2>
               </div>
@@ -629,13 +676,15 @@ export default function AdminPage() {
               </div>
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Status</span>
-                <span className="font-bold text-slate-800 mt-1 block">{selectedTicket.status}</span>
+                <div className="mt-1">
+                  <StatusBadge status={selectedTicket.status} size="sm" />
+                </div>
               </div>
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">SLA Status</span>
-                <span className="font-bold text-slate-800 mt-1 block">
-                  {selectedTicket.sla?.status || "WITHIN_SLA"}
-                </span>
+                <div className="mt-1">
+                  <SLABadge status={selectedTicket.sla?.status} size="sm" />
+                </div>
               </div>
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Filed At (IST)</span>

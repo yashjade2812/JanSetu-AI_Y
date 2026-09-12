@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FileText,
-  Sparkles,
   MapPin,
   CheckCircle2,
   AlertTriangle,
@@ -26,6 +25,7 @@ import { submitComplaint, analyzeTextLive, saveComplaintDraft } from "../../lib/
 import { useTranslation } from "../../context/LanguageContext";
 import { useAuth } from "../../hooks/useAuth";
 import LocationPicker from "../../components/location/LocationPicker";
+import { validateComplaintForm } from "../../lib/validation/mandatoryValidation";
 
 const DRAFT_LOCAL_STORAGE_KEY = "jansetu_report_draft";
 
@@ -43,14 +43,31 @@ function ReportFormContent() {
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
 
+  // Validation & Auto-Focus refs & state
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const locationInputRef = useRef<HTMLInputElement>(null);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
   // AI & Submission state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiPreview, setAiPreview] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [submitSuccess, setSubmitSuccess] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedTracking, setCopiedTracking] = useState(false);
   const [draftRestoredBanner, setDraftRestoredBanner] = useState(false);
+
+  // Real-time authoritative semantic validation
+  const formValidation = validateComplaintForm({
+    rawText,
+    locationName,
+    category: aiPreview?.summary,
+    department: aiPreview?.department,
+  });
+  const descValidation = formValidation.validations.raw_text;
+  const locValidation = formValidation.validations.location;
 
   // Restore draft on mount if available
   useEffect(() => {
@@ -98,15 +115,38 @@ function ReportFormContent() {
     }
   };
 
+  // Silent background AI triage check (debounced)
+  useEffect(() => {
+    if (rawText.trim().length < 10) return;
+    const timer = setTimeout(() => {
+      handlePreAnalyze();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [rawText, language]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rawText.trim() || rawText.trim().length < 5) {
-      setErrorMessage(t("reportPage.errorMinLength") || "Please describe your civic complaint with at least 5 characters.");
-      return;
-    }
 
-    if (!locationName.trim()) {
-      setErrorMessage(t("reportPage.errorLocationRequired") || "Please provide or select a location in Pune for your grievance.");
+    // Prevent duplicate submission events
+    if (isSubmitting || isSubmittingRef.current) return;
+
+    // Strict Mandatory Validation Gate
+    if (!formValidation.canSubmit) {
+      setHasAttemptedSubmit(true);
+      const firstUnres = formValidation.firstUnresolved;
+      setFocusedField(firstUnres?.field || null);
+
+      if (firstUnres?.field === "raw_text") {
+        setErrorMessage(firstUnres.question || "Please provide a valid description for your grievance. Could you please provide more details about the issue?");
+        descriptionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        descriptionRef.current?.focus();
+      } else if (firstUnres?.field === "location") {
+        setErrorMessage(firstUnres.question || "Please provide or select a location in Pune for your grievance. Where is this issue located?");
+        locationInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        locationInputRef.current?.focus();
+      } else {
+        setErrorMessage(firstUnres?.question || "Please complete all mandatory information before submitting. Could you please provide the missing required information?");
+      }
       return;
     }
 
@@ -137,6 +177,7 @@ function ReportFormContent() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -159,8 +200,9 @@ function ReportFormContent() {
       // Refresh profile to reflect +10 credits and new badges
       await refreshProfile();
     } catch (err: any) {
-      setErrorMessage(err.message || "Failed to submit complaint. Please try again.");
+      setErrorMessage(err.message || "Unable to submit your complaint. Please try again.");
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -330,94 +372,122 @@ function ReportFormContent() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Main Grievance Narrative */}
             <div>
-              <div className="flex justify-between items-center mb-2">
+              <div className="mb-2">
                 <label className="text-xs font-bold uppercase tracking-wider text-[#1F2933] flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-[#1F5E91]" />
                   {t("reportPage.describeLabel") || "Describe the Issue"} <span className="text-rose-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={handlePreAnalyze}
-                  disabled={isAnalyzing || rawText.trim().length < 5}
-                  className="text-xs font-bold text-[#1F5E91] hover:text-[#123B5D] disabled:opacity-40 inline-flex items-center gap-1"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-[#F39A32]" />
-                  <span>{isAnalyzing ? t("reportPage.analyzing") : t("reportPage.instantCheck")}</span>
-                </button>
               </div>
               <textarea
+                ref={descriptionRef}
                 rows={4}
-                required
                 value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
+                onChange={(e) => {
+                  setRawText(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 onBlur={() => {
                   if (rawText.length > 10 && !aiPreview) {
                     handlePreAnalyze();
                   }
                 }}
                 placeholder={t("reportPage.textareaPlaceholder") || "e.g. Water pipeline leak near Baner road causing road flooding..."}
-                className="w-full rounded-xl border border-[#E9E9E9] p-4 text-xs sm:text-sm text-[#1F2933] placeholder-[#667085] focus:border-[#1F5E91] focus:outline-none focus:ring-1 focus:ring-[#1F5E91] bg-white leading-relaxed"
+                className={`w-full rounded-xl border p-4 text-xs sm:text-sm text-[#1F2933] placeholder-[#667085] bg-white leading-relaxed transition ${
+                  (hasAttemptedSubmit || rawText.length > 0) && descValidation.status !== "VALID"
+                    ? "border-rose-400 ring-2 ring-rose-200 focus:border-rose-500 focus:ring-rose-300"
+                    : "border-[#E9E9E9] focus:border-[#1F5E91] focus:outline-none focus:ring-1 focus:ring-[#1F5E91]"
+                }`}
               />
-            </div>
 
-            {/* Instant AI Preview Card */}
-            {aiPreview && (
-              <div className="rounded-xl border border-[#1F5E91]/30 bg-[#1F5E91]/5 p-4 animate-in fade-in slide-in-from-top-2">
-                <div className="flex items-center justify-between border-b border-[#1F5E91]/20 pb-2 mb-3">
-                  <span className="text-xs font-bold text-[#123B5D] flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-[#F39A32]" /> {t("reportPage.previewTitle") || "AI Analysis Preview"}
-                  </span>
-                  <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-[#E9E9E9] text-[#1F5E91] font-bold">
-                    {aiPreview.provider}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <span className="text-[#667085] block text-[10px] uppercase font-bold">{t("reportPage.fieldCategory") || "Category"}</span>
-                    <span className="font-semibold text-[#1F2933]">{aiPreview.summary}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#667085] block text-[10px] uppercase font-bold">{t("reportPage.fieldDepartment") || "Department"}</span>
-                    <span className="font-bold text-[#1F5E91]">
-                      {aiPreview.department.replace("_", " ")}
+              {/* Description Inline Clarification Banner */}
+              {(hasAttemptedSubmit || rawText.length > 0) && descValidation.status !== "VALID" && (
+                <div
+                  id="desc-clarification"
+                  role="alert"
+                  className={`mt-2 rounded-xl p-3 text-xs flex items-start gap-2.5 transition-all duration-200 border ${
+                    descValidation.status === "INVALID"
+                      ? "bg-rose-50 border-rose-200 text-rose-900"
+                      : descValidation.status === "INSUFFICIENT"
+                      ? "bg-amber-50 border-amber-200 text-amber-900"
+                      : "bg-blue-50 border-blue-200 text-blue-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                    <span className="px-1.5 py-0.5 text-[10px] font-black rounded uppercase bg-rose-600 text-white tracking-wider">
+                      {descValidation.requirement}
+                    </span>
+                    <span
+                      className={`px-1.5 py-0.5 text-[10px] font-bold rounded uppercase ${
+                        descValidation.status === "INVALID"
+                          ? "bg-rose-200 text-rose-800"
+                          : descValidation.status === "INSUFFICIENT"
+                          ? "bg-amber-200 text-amber-800"
+                          : "bg-slate-200 text-slate-800"
+                      }`}
+                    >
+                      {descValidation.status}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[#667085] block text-[10px] uppercase font-bold">{t("reportPage.fieldPriority") || "Priority"}</span>
-                    <span className="font-black text-[#F39A32]">{aiPreview.priority}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#667085] block text-[10px] uppercase font-bold">{t("reportPage.fieldDuration") || "Duration"}</span>
-                    <span className="font-semibold text-[#1F2933]">{aiPreview.extracted_duration || "N/A"}</span>
-                  </div>
+                  <p className="font-medium leading-relaxed flex-1">
+                    {descValidation.question}
+                  </p>
                 </div>
-
-                {/* Clarification prompt if missing location */}
-                {aiPreview.missing_fields?.includes("location") && (
-                  <div className="mt-3 pt-3 border-t border-[#1F5E91]/10 flex items-start gap-2 text-xs text-amber-900 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold">{t("reportPage.missingLocationTitle")} </span>
-                      {aiPreview.clarification_questions?.[0] || t("reportPage.missingLocationDefault")}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Location Picker with GPS & Map */}
-            <LocationPicker
-              value={locationName}
-              latitude={latitude}
-              longitude={longitude}
-              required={true}
-              onChange={(address, lat, lng) => {
-                setLocationName(address);
-                setLatitude(lat);
-                setLongitude(lng);
-              }}
-            />
+            <div>
+              <LocationPicker
+                id="location-input"
+                inputRef={locationInputRef}
+                hasError={(hasAttemptedSubmit || locationName.length > 0) && locValidation.status !== "VALID"}
+                value={locationName}
+                latitude={latitude}
+                longitude={longitude}
+                required={true}
+                onChange={(address, lat, lng) => {
+                  setLocationName(address);
+                  setLatitude(lat);
+                  setLongitude(lng);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+              />
+
+              {/* Location Inline Clarification Banner */}
+              {(hasAttemptedSubmit || locationName.length > 0) && locValidation.status !== "VALID" && (
+                <div
+                  id="location-clarification"
+                  role="alert"
+                  className={`mt-2.5 rounded-xl p-3 text-xs flex items-start gap-2.5 transition-all duration-200 border ${
+                    locValidation.status === "INVALID"
+                      ? "bg-rose-50 border-rose-200 text-rose-900"
+                      : locValidation.status === "INSUFFICIENT"
+                      ? "bg-amber-50 border-amber-200 text-amber-900"
+                      : "bg-blue-50 border-blue-200 text-blue-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                    <span className="px-1.5 py-0.5 text-[10px] font-black rounded uppercase bg-rose-600 text-white tracking-wider">
+                      {locValidation.requirement}
+                    </span>
+                    <span
+                      className={`px-1.5 py-0.5 text-[10px] font-bold rounded uppercase ${
+                        locValidation.status === "INVALID"
+                          ? "bg-rose-200 text-rose-800"
+                          : locValidation.status === "INSUFFICIENT"
+                          ? "bg-amber-200 text-amber-800"
+                          : "bg-slate-200 text-slate-800"
+                      }`}
+                    >
+                      {locValidation.status}
+                    </span>
+                  </div>
+                  <p className="font-medium leading-relaxed flex-1">
+                    {locValidation.question}
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Submit Bar */}
             <div className="pt-4 border-t border-[#E9E9E9] flex items-center justify-between">
@@ -437,7 +507,7 @@ function ReportFormContent() {
                 )}
                 <button
                   type="submit"
-                  disabled={isSubmitting || !rawText.trim() || !locationName.trim()}
+                  disabled={isSubmitting}
                   className="inline-flex items-center gap-2 rounded-xl bg-[#1F5E91] hover:bg-[#123B5D] px-6 py-3 text-xs sm:text-sm font-bold text-white shadow hover:shadow-md disabled:opacity-50 transition active:scale-95 cursor-pointer"
                 >
                   <Send className="h-4 w-4" />

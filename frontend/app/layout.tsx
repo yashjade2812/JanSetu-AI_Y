@@ -19,7 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+      <body className="min-h-screen bg-[#F5F4F0] text-[#1F2933] antialiased selection:bg-[#1F5E91] selection:text-white">
         <LanguageProvider>
           <TextSizeProvider>
             <AuthProvider>

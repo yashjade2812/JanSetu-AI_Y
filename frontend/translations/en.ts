@@ -311,7 +311,7 @@ export const en = {
     fieldPriority: "Priority",
     fieldDuration: "Duration",
     missingLocationTitle: "Missing Location Detected:",
-    missingLocationDefault: "Please specify your area or landmark below so crews can locate it.",
+    missingLocationDefault: "Could you please provide a more specific location or nearby landmark?",
     locationLabel: "Area / Landmark / Location in Pune",
     locationPlaceholder: "e.g. Baner Road near Balewadi Phata, or Kothrud near Karve Statue",
     useCurrentLocation: "Use my current location",

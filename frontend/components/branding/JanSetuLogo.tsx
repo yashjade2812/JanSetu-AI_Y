@@ -128,7 +128,7 @@ export const JanSetuLogo: React.FC<JanSetuLogoProps> = ({
               isDark ? "text-white/70" : "text-[#667085]"
             }`}
           >
-            AI-Powered Citizen Service Platform
+            From Citizen Voice to Government Action
           </p>
         )}
       </div>

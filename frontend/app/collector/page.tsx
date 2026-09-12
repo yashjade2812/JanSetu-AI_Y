@@ -27,6 +27,13 @@ import {
   getMe,
 } from "../../lib/api";
 import { formatDateIST } from "../../lib/date";
+import {
+  PriorityBadge,
+  StatusBadge,
+  SLABadge,
+  DashboardMetricCard,
+  EmptyState,
+} from "../../components/ui";
 
 export default function CollectorPage() {
   const router = useRouter();
@@ -79,19 +86,6 @@ export default function CollectorPage() {
     loadCollectorData();
   }, []);
 
-  const getPriorityBadge = (prio: string) => {
-    switch (prio) {
-      case "P0":
-        return <span className="rounded bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">P0 Emergency</span>;
-      case "P1":
-        return <span className="rounded bg-orange-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">P1 High</span>;
-      case "P2":
-        return <span className="rounded bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">P2 Med</span>;
-      default:
-        return <span className="rounded bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">P3 Low</span>;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
       <OfficialNavbar title="District Collector Intelligence & Grievance Briefing" />
@@ -129,52 +123,35 @@ export default function CollectorPage() {
         </div>
 
         {/* High-Level Intelligence KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-xl sm:rounded-2xl border border-rose-300 bg-rose-50/70 p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-rose-700 block">P0 Life Hazards</span>
-              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 animate-pulse" />
-            </div>
-            <span className="text-3xl font-black text-rose-700 mt-1 sm:mt-2 block">
-              {metrics?.critical_p0_count || 1}
-            </span>
-            <span className="text-[11px] text-rose-600 mt-1 block">Immediate intervention priority</span>
-          </div>
-
-          <div className="rounded-xl sm:rounded-2xl border border-red-300 bg-red-50/70 p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-red-700 block">SLA Breaches</span>
-              <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
-            </div>
-            <span className="text-3xl font-black text-red-700 mt-1 sm:mt-2 block">
-              {metrics?.sla_breached_count || 2}
-            </span>
-            <span className="text-[11px] text-red-600 mt-1 block">Overdue beyond legal timelines</span>
-          </div>
-
-          <div className="rounded-xl sm:rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-indigo-700 block">Active Incidents</span>
-              <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
-            </div>
-            <span className="text-3xl font-black text-slate-900 sm:text-indigo-900 mt-1 sm:mt-2 block">
-              {incidents.length || 2}
-            </span>
-            <span className="text-[11px] text-slate-500 sm:text-indigo-600 mt-1 block">Clustered multi-complaint events</span>
-          </div>
-
-          <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-indigo-700 sm:text-slate-500 block">Total Grievances</span>
-              <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
-            </div>
-            <span className="text-3xl font-black text-slate-900 mt-1 sm:mt-2 block">
-              {metrics?.total_complaints || 35}
-            </span>
-            <span className="text-[11px] text-slate-500 mt-1 block">
-              {metrics?.resolution_rate || 20}% resolved city-wide
-            </span>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <DashboardMetricCard
+            label="P0 Life Hazards"
+            value={metrics?.critical_p0_count || 0}
+            subtext="Immediate intervention priority"
+            variant="critical"
+            icon={<AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 animate-pulse" />}
+          />
+          <DashboardMetricCard
+            label="SLA Breaches"
+            value={metrics?.sla_breached_count || 0}
+            subtext="Overdue beyond legal SLA timelines"
+            variant="critical"
+            icon={<Clock className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />}
+          />
+          <DashboardMetricCard
+            label="Active Incidents"
+            value={incidents.length || 0}
+            subtext="Clustered multi-citizen disruptions"
+            variant="purple"
+            icon={<Activity className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />}
+          />
+          <DashboardMetricCard
+            label="Total Grievances"
+            value={metrics?.total_complaints || 0}
+            subtext={`${metrics?.resolution_rate || 100}% resolved city-wide`}
+            variant="neutral"
+            icon={<BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />}
+          />
         </div>
 
         {/* Emerging Civic Incident Clusters Panel */}
@@ -244,66 +221,93 @@ export default function CollectorPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="py-3 px-4">Tracking ID</th>
-                  <th className="py-3 px-4">Issue Narrative</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Filed (IST) ↓</th>
-                  <th className="py-3 px-4">Priority</th>
-                  <th className="py-3 px-4">Escalation Justification</th>
-                  <th className="py-3 px-4">SLA State</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {criticalTickets.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-slate-400">
-                      No escalated cases currently awaiting intervention.
-                    </td>
-                  </tr>
-                ) : (
-                  criticalTickets.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600 whitespace-nowrap">
-                        {t.tracking_number}
-                      </td>
-                      <td className="py-3 px-4 max-w-xs truncate font-semibold text-slate-900">
-                        {t.issue_summary}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        {t.department_id?.replace("_", " ")}
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-[11px]">
-                        {formatDateIST(t.created_at)}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {getPriorityBadge(t.priority)}
-                      </td>
-                      <td className="py-3 px-4 text-rose-700 font-medium text-[11px] max-w-sm truncate">
-                        {t.escalation_reason || "Immediate oversight required."}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap font-semibold">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[11px] ${
-                            t.sla?.status === "BREACHED"
-                              ? "bg-rose-100 text-rose-800"
-                              : t.sla?.status === "AT_RISK"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {t.sla?.status || "WITHIN_SLA"}
-                        </span>
-                      </td>
+          {criticalTickets.length === 0 ? (
+            <EmptyState
+              title="No escalated cases"
+              description="There are currently no escalated grievances requiring District Collectorate intervention."
+              actionText="Refresh Telemetry"
+              onAction={loadCollectorData}
+            />
+          ) : (
+            <>
+              {/* Desktop / Tablet Compact Table */}
+              <div className="responsive-table-container custom-scrollbar hidden md:block rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs min-w-[700px]">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="py-2.5 px-3.5">Tracking ID</th>
+                      <th className="py-2.5 px-3.5">Issue Narrative</th>
+                      <th className="py-2.5 px-3.5">Department</th>
+                      <th className="py-2.5 px-3.5">Filed (IST) ↓</th>
+                      <th className="py-2.5 px-3.5">Priority</th>
+                      <th className="py-2.5 px-3.5">Escalation Justification</th>
+                      <th className="py-2.5 px-3.5">SLA State</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {criticalTickets.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-2.5 px-3.5 font-mono font-bold text-indigo-600 whitespace-nowrap">
+                          {t.tracking_number}
+                        </td>
+                        <td className="py-2.5 px-3.5 max-w-xs truncate font-semibold text-slate-900">
+                          {t.issue_summary}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-700 whitespace-nowrap font-medium">
+                          {t.department_id?.replace("_", " ")}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap text-[11px]">
+                          {formatDateIST(t.created_at)}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <PriorityBadge priority={t.priority} size="sm" />
+                        </td>
+                        <td className="py-2.5 px-3.5 text-rose-700 font-medium text-[11px] max-w-sm truncate">
+                          {t.escalation_reason || "Immediate oversight required."}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap font-semibold">
+                          <SLABadge status={t.sla?.status} size="sm" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Responsive Cards (< md) */}
+              <div className="block md:hidden space-y-3">
+                {criticalTickets.map((t) => (
+                  <div
+                    key={t.id}
+                    className="rounded-xl border border-rose-200 bg-white p-4 shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="font-mono text-xs font-bold text-indigo-600">
+                        {t.tracking_number}
+                      </span>
+                      <PriorityBadge priority={t.priority} size="sm" />
+                    </div>
+                    <h3 className="font-bold text-xs text-slate-900 line-clamp-2">
+                      {t.issue_summary}
+                    </h3>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5">
+                      <span className="font-medium text-indigo-700">{t.department_id?.replace("_", " ")}</span>
+                      <span>{formatDateIST(t.created_at)}</span>
+                    </div>
+                    {t.escalation_reason && (
+                      <p className="mt-2 rounded bg-rose-50 border border-rose-100 p-2 text-[11px] text-rose-800 font-medium">
+                        ⚠️ {t.escalation_reason}
+                      </p>
+                    )}
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                      <SLABadge status={t.sla?.status} size="sm" />
+                      <span className="text-[11px] font-bold text-indigo-600">Escalated</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Department Comparative Performance Matrix */}

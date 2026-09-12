@@ -657,6 +657,30 @@ async def seed_data():
             session.add(notif)
 
         await session.commit()
+
+        if "postgres" in engine.dialect.name:
+            from sqlalchemy import text
+            await session.execute(text("CREATE SEQUENCE IF NOT EXISTS complaint_tracking_seq START WITH 101;"))
+            await session.execute(text("""
+                SELECT setval('complaint_tracking_seq', (
+                    SELECT COALESCE(
+                        GREATEST(
+                            MAX(
+                                CASE 
+                                    WHEN tracking_number ~ 'JS-[0-9]{4}-[A-Z]+-[0-9]+'
+                                    THEN CAST(SPLIT_PART(tracking_number, '-', 4) AS BIGINT)
+                                    ELSE 100
+                                END
+                            ),
+                            100
+                        ),
+                        100
+                    )
+                    FROM complaints
+                ), true);
+            """))
+            await session.commit()
+
         print("[SUCCESS] Successfully seeded JanSetu AI with 8 departments, demo accounts, and 31 realistic Pune grievances!")
 
     # Ensure demo accounts and standard badge definitions are seeded

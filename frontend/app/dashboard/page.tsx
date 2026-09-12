@@ -26,6 +26,7 @@ import Footer from "../../components/layout/Footer";
 import { useAuth } from "../../hooks/useAuth";
 import { getMyComplaints } from "../../lib/api";
 import { formatDateIST } from "../../lib/date";
+import { PriorityBadge, StatusBadge, DashboardMetricCard, EmptyState } from "../../components/ui";
 
 export default function CitizenDashboardPage() {
   const router = useRouter();
@@ -98,51 +99,6 @@ export default function CitizenDashboardPage() {
     ["RESOLVED", "CLOSED"].includes(c.status)
   ).length;
 
-  const getStatusBadge = (status: string) => {
-    const s = (status || "").toUpperCase();
-    if (s === "RESOLVED" || s === "CLOSED") {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
-          <CheckCircle2 className="h-3 w-3" />
-          Resolved
-        </span>
-      );
-    }
-    if (s === "IN_PROGRESS" || s === "ASSIGNED") {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#1F5E91] border border-blue-200">
-          <Clock className="h-3 w-3 animate-spin" />
-          In Progress
-        </span>
-      );
-    }
-    if (s === "NEEDS_CLARIFICATION" || s === "AWAITING_CITIZEN") {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800 border border-amber-300">
-          <AlertCircle className="h-3 w-3 text-amber-600" />
-          Clarification Needed
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700 border border-slate-200">
-        <Clock className="h-3 w-3" />
-        {s.replace(/_/g, " ")}
-      </span>
-    );
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    const p = (priority || "").toUpperCase();
-    if (p === "P0" || p === "CRITICAL" || p === "HIGH") {
-      return <span className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">High Priority</span>;
-    }
-    if (p === "P1" || p === "MEDIUM") {
-      return <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">Medium Priority</span>;
-    }
-    return <span className="text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">Normal</span>;
-  };
-
   return (
     <div className="min-h-screen bg-[#F5F4F0] flex flex-col selection:bg-[#1F5E91] selection:text-white">
       <PublicNavbar />
@@ -213,48 +169,41 @@ export default function CitizenDashboardPage() {
         </div>
 
         {/* Complaint Summary Stat Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-xl border border-[#E9E9E9] bg-white p-5 shadow-xs">
-            <div className="flex items-center justify-between text-[#667085] mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Total Filed</span>
-              <FileText className="h-4 w-4 text-[#1F5E91]" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-[#123B5D]">{totalCount}</div>
-            <p className="text-[11px] text-[#667085] mt-1">Grievances filed under your account</p>
-          </div>
-
-          <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-5 shadow-xs">
-            <div className="flex items-center justify-between text-amber-800 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Open / Triage</span>
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-900">{openCount}</div>
-            <p className="text-[11px] text-amber-700/80 mt-1">Pending department allocation</p>
-          </div>
-
-          <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-5 shadow-xs">
-            <div className="flex items-center justify-between text-[#1F5E91] mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">In Progress</span>
-              <Clock className="h-4 w-4 text-[#1F5E91]" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-[#123B5D]">{inProgressCount}</div>
-            <p className="text-[11px] text-[#667085] mt-1">Assigned to municipal officers</p>
-          </div>
-
-          <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-5 shadow-xs">
-            <div className="flex items-center justify-between text-emerald-800 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Resolved</span>
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-900">{resolvedCount}</div>
-            <p className="text-[11px] text-emerald-700/80 mt-1">Verified and closed</p>
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <DashboardMetricCard
+            title="Total Filed"
+            value={totalCount}
+            subtitle="Grievances under account"
+            variant="neutral"
+            icon={<FileText className="h-4 w-4" />}
+          />
+          <DashboardMetricCard
+            title="Open / Triage"
+            value={openCount}
+            subtitle="Pending allocation"
+            variant="warning"
+            icon={<AlertCircle className="h-4 w-4" />}
+          />
+          <DashboardMetricCard
+            title="In Progress"
+            value={inProgressCount}
+            subtitle="Assigned to officers"
+            variant="blue"
+            icon={<Clock className="h-4 w-4" />}
+          />
+          <DashboardMetricCard
+            title="Resolved"
+            value={resolvedCount}
+            subtitle="Verified & closed"
+            variant="success"
+            icon={<CheckCircle2 className="h-4 w-4" />}
+          />
         </div>
 
         {/* Action Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-[#123B5D] text-white">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-[#123B5D] text-white shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-[#F39A32]/20 flex items-center justify-center text-[#F39A32]">
+            <div className="h-10 w-10 rounded-lg bg-[#F39A32]/20 flex items-center justify-center text-[#F39A32] shrink-0">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -275,10 +224,10 @@ export default function CitizenDashboardPage() {
         </div>
 
         {/* Recent Complaints Section */}
-        <div className="rounded-2xl border border-[#E9E9E9] bg-white p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-4 border-b border-[#E9E9E9]">
+        <div className="rounded-2xl border border-[#E9E9E9] bg-white p-4 sm:p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E9E9E9]">
             <div>
-              <h2 className="text-lg font-bold text-[#123B5D]">My Registered Grievances</h2>
+              <h2 className="text-base sm:text-lg font-bold text-[#123B5D]">My Registered Grievances</h2>
               <p className="text-xs text-[#667085]">
                 Only complaints linked to your authenticated account are displayed here.
               </p>
@@ -287,7 +236,7 @@ export default function CitizenDashboardPage() {
             <button
               onClick={fetchComplaints}
               disabled={isLoadingComplaints}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1F5E91] hover:text-[#123B5D] px-2.5 py-1.5 rounded-lg border border-[#E9E9E9] hover:bg-[#F5F4F0] transition"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1F5E91] hover:text-[#123B5D] px-2.5 py-1.5 rounded-lg border border-[#E9E9E9] hover:bg-[#F5F4F0] transition shrink-0"
               title="Refresh list"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoadingComplaints ? "animate-spin" : ""}`} />
@@ -308,76 +257,104 @@ export default function CitizenDashboardPage() {
               <span className="text-xs font-semibold">Retrieving your complaints...</span>
             </div>
           ) : complaints.length === 0 ? (
-            <div className="py-12 text-center max-w-md mx-auto space-y-3">
-              <div className="mx-auto h-12 w-12 rounded-full bg-[#1F5E91]/10 flex items-center justify-center text-[#1F5E91]">
-                <FileText className="h-6 w-6" />
-              </div>
-              <h3 className="text-base font-bold text-[#123B5D]">No Grievances Reported Yet</h3>
-              <p className="text-xs text-[#667085]">
-                You haven&apos;t filed any civic complaints yet. Notice a pothole, leaking water pipe, or broken streetlight?
-                Report it to earn your first 10 Civic Credits!
-              </p>
-              <div className="pt-2">
-                <Link
-                  href="/report"
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#1F5E91] hover:bg-[#123B5D] text-white px-4 py-2 text-xs font-bold transition shadow"
-                >
-                  <PlusCircle className="h-3.5 w-3.5" />
-                  <span>Report Your First Grievance</span>
-                </Link>
-              </div>
-            </div>
+            <EmptyState
+              icon={FileText}
+              title="No Grievances Reported Yet"
+              description="You haven't filed any civic complaints yet. Notice a pothole, leaking water pipe, or broken streetlight? Report it to earn your first 10 Civic Credits!"
+              actionLabel="Report Your First Grievance"
+              onAction={() => router.push("/report")}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E9E9E9] text-[11px] uppercase font-bold text-[#667085] tracking-wider bg-[#F5F4F0]/60">
-                    <th className="py-3 px-4">Tracking ID</th>
-                    <th className="py-3 px-4">Issue Summary</th>
-                    <th className="py-3 px-4">Department</th>
-                    <th className="py-3 px-4">Priority</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Submitted</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E9E9E9] text-xs">
-                  {complaints.map((c) => (
-                    <tr key={c.id || c.tracking_number} className="hover:bg-[#F5F4F0]/40 transition">
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#1F5E91] whitespace-nowrap">
-                        {c.tracking_number}
-                      </td>
-                      <td className="py-3.5 px-4 max-w-xs font-medium text-[#1F2933]">
-                        <p className="truncate" title={c.raw_text || c.issue_summary}>
-                          {c.issue_summary || c.raw_text || "Civic Complaint"}
-                        </p>
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap text-[#1F2933]">
-                        {c.department_name || c.department_id || "Civic Services"}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {getPriorityBadge(c.priority || c.urgency_level)}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {getStatusBadge(c.status)}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap text-[#667085]">
-                        {formatDateIST(c.created_at)}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                        <Link
-                          href={`/track?id=${encodeURIComponent(c.tracking_number)}`}
-                          className="inline-flex items-center gap-1 rounded-lg bg-[#1F5E91]/10 hover:bg-[#1F5E91] text-[#1F5E91] hover:text-white px-2.5 py-1.5 font-bold transition text-[11px]"
-                        >
-                          <span>Track</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </Link>
-                      </td>
+            <>
+              {/* Desktop & Tablet View (Hidden on mobile) */}
+              <div className="hidden md:block responsive-table-container custom-scrollbar border border-[#E9E9E9] rounded-xl overflow-hidden">
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-[#E9E9E9] text-[11px] uppercase font-bold text-[#667085] tracking-wider bg-[#F5F4F0]/80">
+                      <th className="py-2.5 px-3.5">Tracking ID</th>
+                      <th className="py-2.5 px-3.5">Issue Summary</th>
+                      <th className="py-2.5 px-3.5">Department</th>
+                      <th className="py-2.5 px-3.5">Priority</th>
+                      <th className="py-2.5 px-3.5">Status</th>
+                      <th className="py-2.5 px-3.5">Submitted</th>
+                      <th className="py-2.5 px-3.5 text-right">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-[#E9E9E9] text-xs">
+                    {complaints.map((c) => (
+                      <tr key={c.id || c.tracking_number} className="hover:bg-[#F5F4F0]/50 transition">
+                        <td className="py-2.5 px-3.5 font-mono font-bold text-[#1F5E91] whitespace-nowrap">
+                          {c.tracking_number}
+                        </td>
+                        <td className="py-2.5 px-3.5 max-w-xs font-medium text-[#1F2933]">
+                          <p className="truncate" title={c.raw_text || c.issue_summary}>
+                            {c.issue_summary || c.raw_text || "Civic Complaint"}
+                          </p>
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap text-[#1F2933]">
+                          {c.department_name || c.department_id || "Civic Services"}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <PriorityBadge priority={c.priority || c.urgency_level} />
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <StatusBadge status={c.status} />
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap text-[#667085]">
+                          {formatDateIST(c.created_at)}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap text-right">
+                          <Link
+                            href={`/track?id=${encodeURIComponent(c.tracking_number)}`}
+                            className="inline-flex items-center gap-1 rounded-lg bg-[#1F5E91]/10 hover:bg-[#1F5E91] text-[#1F5E91] hover:text-white px-2.5 py-1 font-bold transition text-[11px]"
+                          >
+                            <span>Track</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View (Hidden on tablet/desktop) */}
+              <div className="block md:hidden space-y-3">
+                {complaints.map((c) => (
+                  <div
+                    key={c.id || c.tracking_number}
+                    className="rounded-xl border border-[#E9E9E9] bg-[#F5F4F0]/40 p-3.5 space-y-2.5 hover:border-[#1F5E91]/30 transition"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold text-[#1F5E91]">
+                        {c.tracking_number}
+                      </span>
+                      <PriorityBadge priority={c.priority || c.urgency_level} />
+                    </div>
+
+                    <p className="text-xs font-semibold text-[#123B5D] line-clamp-2">
+                      {c.issue_summary || c.raw_text || "Civic Complaint"}
+                    </p>
+
+                    <div className="flex items-center justify-between text-[11px] text-[#667085] pt-1 border-t border-[#E9E9E9]">
+                      <span>{c.department_name || c.department_id || "Civic Services"}</span>
+                      <span>{formatDateIST(c.created_at)}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <StatusBadge status={c.status} />
+                      <Link
+                        href={`/track?id=${encodeURIComponent(c.tracking_number)}`}
+                        className="inline-flex items-center gap-1 rounded-lg bg-[#1F5E91] text-white px-3 py-1 font-bold transition text-[11px] shadow-xs active:scale-95"
+                      >
+                        <span>Track</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </main>

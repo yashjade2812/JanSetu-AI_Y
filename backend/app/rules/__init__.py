@@ -22,6 +22,13 @@ from app.rules.permissions import (
     can_view_admin_metrics, can_view_collector_brief
 )
 from app.rules.escalation_rules import check_auto_escalation
+from app.rules.mandatory_validation import (
+    REQUIREMENT_MANDATORY, REQUIREMENT_IMPORTANT, REQUIREMENT_OPTIONAL,
+    STATUS_EMPTY, STATUS_INVALID, STATUS_INSUFFICIENT, STATUS_VALID,
+    COMPLAINT_REQUIREMENTS, DEFAULT_REQUIREMENTS,
+    validate_description, validate_location, validate_complaint_type,
+    validate_complaint_submission,
+)
 
 __all__ = [
     "CITIZEN", "MUNICIPAL_ADMIN", "DEPARTMENT_OFFICER", "COLLECTOR", "ALL_ROLES", "is_valid_role",
@@ -37,5 +44,10 @@ __all__ = [
     "route_to_department",
     "can_view_ticket", "can_modify_ticket", "can_reroute_department",
     "can_view_admin_metrics", "can_view_collector_brief",
-    "check_auto_escalation"
+    "check_auto_escalation",
+    "REQUIREMENT_MANDATORY", "REQUIREMENT_IMPORTANT", "REQUIREMENT_OPTIONAL",
+    "STATUS_EMPTY", "STATUS_INVALID", "STATUS_INSUFFICIENT", "STATUS_VALID",
+    "COMPLAINT_REQUIREMENTS", "DEFAULT_REQUIREMENTS",
+    "validate_description", "validate_location", "validate_complaint_type",
+    "validate_complaint_submission",
 ]

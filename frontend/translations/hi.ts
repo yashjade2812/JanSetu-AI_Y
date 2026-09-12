@@ -313,7 +313,7 @@ export const hi: Translations = {
     fieldPriority: "प्राथमिकता",
     fieldDuration: "अवधि",
     missingLocationTitle: "स्थान की जानकारी नहीं मिली:",
-    missingLocationDefault: "कृपया नीचे अपना क्षेत्र या निकटतम लैंडमार्क बताएं ताकि दल वहां पहुंच सके।",
+    missingLocationDefault: "क्या आप कृपया अधिक विशिष्ट स्थान या आस-पास का लैंडमार्क बता सकते हैं?",
     locationLabel: "पुणे में क्षेत्र / लैंडमार्क / स्थान",
     locationPlaceholder: "उदा. बानेर रोड, बालेवाड़ी फाटा के पास, या कोथरूड कर्वे पुतले के पास",
     useCurrentLocation: "मेरे वर्तमान स्थान का उपयोग करें",

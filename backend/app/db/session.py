@@ -167,6 +167,27 @@ async def init_db() -> None:
         attachment, notification, audit_log,
         complaint_update, complaint_draft, contribution, badge
     )
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        if "postgres" in engine.dialect.name:
+            await conn.execute(text("CREATE SEQUENCE IF NOT EXISTS complaint_tracking_seq START WITH 101;"))
+            await conn.execute(text("""
+                SELECT setval('complaint_tracking_seq', (
+                    SELECT COALESCE(
+                        GREATEST(
+                            MAX(
+                                CASE 
+                                    WHEN tracking_number ~ 'JS-[0-9]{4}-[A-Z]+-[0-9]+'
+                                    THEN CAST(SPLIT_PART(tracking_number, '-', 4) AS BIGINT)
+                                    ELSE 100
+                                END
+                            ),
+                            100
+                        ),
+                        100
+                    )
+                    FROM complaints
+                ), true);
+            """))
 

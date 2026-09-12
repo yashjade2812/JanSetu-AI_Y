@@ -4,9 +4,14 @@ Handles grievance ingestion, AI understanding, citizen ownership, drafts,
 public tracking, timeline updates, and citizen clarification.
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from typing import Dict, Any, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from app.db.session import get_db
 from app.api.dependencies import get_current_user, get_optional_user, require_roles
@@ -18,6 +23,7 @@ from app.schemas.complaint import (
     DraftResponse,
 )
 from app.services.complaint_service import complaint_service
+from app.rules.mandatory_validation import MandatoryValidationException
 
 router = APIRouter(prefix="/complaints", tags=["Complaints"])
 
@@ -28,20 +34,44 @@ async def submit_complaint(
     complaint_in: ComplaintCreate,
     optional_user: Optional[UserModel] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> Any:
     """
     Ingests raw citizen complaint, executes AI extraction pipeline,
-    determines priority & department routing, associates citizen_id if authenticated,
-    and initiates SLA clock.
+    strictly validates all mandatory fields, determines priority & department routing,
+    associates citizen_id if authenticated, and initiates SLA clock.
     """
     try:
         citizen_id = str(optional_user.id) if optional_user else None
         result = await complaint_service.create_complaint(complaint_in, db, citizen_id=citizen_id)
         return result
-    except Exception as e:
+    except MandatoryValidationException as mve:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=mve.to_dict(),
+        )
+    except HTTPException:
+        await db.rollback()
+        raise
+    except IntegrityError as ie:
+        await db.rollback()
+        logger.error(f"Database integrity violation during complaint creation: {ie}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unable to submit your complaint due to a data conflict. Please try again.",
+        )
+    except SQLAlchemyError as se:
+        await db.rollback()
+        logger.error(f"Database error during complaint creation: {se}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process complaint: {str(e)}",
+            detail="Unable to submit your complaint. Please try again.",
+        )
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Unexpected error during complaint creation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to submit your complaint. Please try again.",
         )
 
 

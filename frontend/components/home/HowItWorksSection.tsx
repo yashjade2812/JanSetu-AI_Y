@@ -21,21 +21,21 @@ export const HowItWorksSection: React.FC = () => {
       title: t("howItWorks.step2Title"),
       desc: t("howItWorks.step2Desc"),
       icon: BrainCircuit,
-      pillBg: "bg-[#123B5D] text-white",
+      pillBg: "bg-[#1F5E91] text-white",
     },
     {
       step: "03",
       title: t("howItWorks.step3Title"),
       desc: t("howItWorks.step3Desc"),
       icon: CornerDownRight,
-      pillBg: "bg-[#F39A32] text-[#123B5D]",
+      pillBg: "bg-[#1F5E91] text-white",
     },
     {
       step: "04",
       title: t("howItWorks.step4Title"),
       desc: t("howItWorks.step4Desc"),
       icon: CheckCircle,
-      pillBg: "bg-emerald-600 text-white",
+      pillBg: "bg-[#1F5E91] text-white",
     },
   ];
 

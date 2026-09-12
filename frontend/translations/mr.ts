@@ -313,7 +313,7 @@ export const mr: Translations = {
     fieldPriority: "प्राधान्यता",
     fieldDuration: "कालावधी",
     missingLocationTitle: "ठिकाणाची माहिती सापडली नाही:",
-    missingLocationDefault: "कृपया खाली आपल्या परिसराचे किंवा जवळच्या ठिकाणाचे नाव लिहा जेणेकरून पथक तिथे पोहोचू शकेल.",
+    missingLocationDefault: "तुम्ही कृपया अधिक विशिष्ट ठिकाण किंवा जवळपासची खूण सांगू शकाल का?",
     locationLabel: "पुण्यातील परिसर / खूण / ठिकाण",
     locationPlaceholder: "उदा. बाणेर रोड बालेवाडी फाट्याजवळ, किंवा कोथरूड कर्वे पुतळ्याजवळ",
     useCurrentLocation: "माझे सध्याचे ठिकाण वापरा",

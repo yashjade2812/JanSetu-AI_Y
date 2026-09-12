@@ -42,6 +42,13 @@ import {
 } from "../../lib/api";
 import { formatDateIST } from "../../lib/date";
 import ComplaintLocationCard from "../../components/location/ComplaintLocationCard";
+import {
+  PriorityBadge,
+  StatusBadge,
+  SLABadge,
+  DashboardMetricCard,
+  EmptyState,
+} from "../../components/ui";
 
 export default function DepartmentPage() {
   const router = useRouter();
@@ -358,7 +365,6 @@ export default function DepartmentPage() {
       setActionError(err.message);
     }
   };
-
   const getPriorityBadge = (prio: string) => {
     switch (prio) {
       case "P0":
@@ -464,7 +470,9 @@ export default function DepartmentPage() {
   const assignedCount = tickets.filter(isAssigned).length;
   const inProgressCount = tickets.filter(isInProgress).length;
   const resolvedCount = tickets.filter(isResolved).length;
+  const openTicketsCount = tickets.filter((t) => !["RESOLVED", "CLOSED"].includes(t.status)).length;
   const criticalCount = tickets.filter((t) => t.priority === "P0" || t.priority === "P1").length;
+  const breachedCount = tickets.filter((t) => t.sla?.status === "BREACHED").length;
 
   // Filtered tickets list according to selected real-time status tab
   const filteredTickets = tickets.filter((t) => {
@@ -522,74 +530,28 @@ export default function DepartmentPage() {
           </button>
         </div>
 
-        {/* Operational Metrics Cards — Clickable to jump directly to status tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <button
-            onClick={() => setAssignmentFilter("UNASSIGNED")}
-            className={`text-left rounded-xl border p-4 shadow-sm transition ${
-              assignmentFilter === "UNASSIGNED"
-                ? "border-amber-500 bg-amber-50 ring-2 ring-amber-400/30"
-                : "border-amber-200 bg-amber-50/70 hover:bg-amber-100/60"
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">Unassigned</span>
-            <span className="text-2xl font-black text-amber-800 mt-1 block">{unassignedCount}</span>
-          </button>
-
-          <button
-            onClick={() => setAssignmentFilter("ASSIGNED")}
-            className={`text-left rounded-xl border p-4 shadow-sm transition ${
-              assignmentFilter === "ASSIGNED"
-                ? "border-indigo-500 bg-indigo-50 ring-2 ring-indigo-400/30"
-                : "border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/60"
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 block">Assigned Personnel</span>
-            <span className="text-2xl font-black text-indigo-800 mt-1 block">{assignedCount}</span>
-          </button>
-
-          <button
-            onClick={() => setAssignmentFilter("IN_PROGRESS")}
-            className={`text-left rounded-xl border p-4 shadow-sm transition ${
-              assignmentFilter === "IN_PROGRESS"
-                ? "border-blue-500 bg-blue-50 ring-2 ring-blue-400/30"
-                : "border-blue-200 bg-blue-50/70 hover:bg-blue-100/60"
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">Work in Progress</span>
-            <span className="text-2xl font-black text-blue-800 mt-1 block">{inProgressCount}</span>
-          </button>
-
-          <button
-            onClick={() => setAssignmentFilter("RESOLVED")}
-            className={`text-left rounded-xl border p-4 shadow-sm transition ${
-              assignmentFilter === "RESOLVED"
-                ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-400/30"
-                : "border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/60"
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">Resolved</span>
-            <span className="text-2xl font-black text-emerald-800 mt-1 block">{resolvedCount}</span>
-          </button>
-
-          <button
-            onClick={() => setAssignmentFilter("ALL")}
-            className={`text-left rounded-xl border p-4 shadow-sm transition ${
-              assignmentFilter === "ALL"
-                ? "border-slate-400 bg-white ring-2 ring-slate-300"
-                : "border-slate-200 bg-white hover:bg-slate-50"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total In Queue</span>
-              {criticalCount > 0 && (
-                <span className="rounded bg-rose-100 text-rose-700 text-[10px] font-bold px-1.5 py-0.5">
-                  {criticalCount} P0/P1
-                </span>
-              )}
-            </div>
-            <span className="text-2xl font-black text-slate-900 mt-1 block">{allCount}</span>
-          </button>
+        {/* Department Operational Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <DashboardMetricCard
+            label="Open Tickets"
+            value={openTicketsCount}
+            variant="blue"
+          />
+          <DashboardMetricCard
+            label="Critical (P0/P1)"
+            value={criticalCount}
+            variant="critical"
+          />
+          <DashboardMetricCard
+            label="SLA Breached"
+            value={breachedCount}
+            variant="critical"
+          />
+          <DashboardMetricCard
+            label="Resolved"
+            value={resolvedCount}
+            variant="success"
+          />
         </div>
 
         {/* Priority Dispatch Table Card */}
@@ -643,105 +605,153 @@ export default function DepartmentPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="py-3 px-4">Tracking ID</th>
-                  <th className="py-3 px-4">Issue Summary</th>
-                  <th className="py-3 px-4">Location</th>
-                  <th className="py-3 px-4">Filed (IST)</th>
-                  <th className="py-3 px-4">Priority</th>
-                  <th className="py-3 px-4">Assignment Status</th>
-                  <th className="py-3 px-4">Assigned Personnel</th>
-                  <th className="py-3 px-4">SLA State</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredTickets.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="text-center py-10 text-slate-400 font-medium">
-                      No complaints match the selected filter in your department queue.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTickets.map((t) => (
-                    <tr
-                      key={t.id}
-                      onClick={() => handleOpenTicket(t.id)}
-                      className="hover:bg-slate-50 cursor-pointer transition"
-                    >
-                      <td className="py-3.5 px-4 font-mono font-bold text-indigo-600 whitespace-nowrap">
-                        {t.tracking_number}
-                      </td>
-                      <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs truncate">
-                        {t.issue_summary}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                        {t.location_name || <span className="text-rose-500">Missing</span>}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap text-[11px]">
-                        {formatDateIST(t.created_at)}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {getPriorityBadge(t.priority)}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {getAssignmentBadge(t)}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {t.assigned_officer_name ? (
-                          <div className="flex items-center gap-2">
-                            <div className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] shrink-0">
-                              {t.assigned_officer_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-800 leading-tight">{t.assigned_officer_name}</div>
-                              <div className="text-[10px] text-slate-400">{t.assigned_personnel?.designation || "Field Officer"}</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">Pending assignment</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap font-semibold">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[11px] ${
-                            t.sla?.status === "BREACHED"
-                              ? "bg-rose-100 text-rose-800"
-                              : t.sla?.status === "AT_RISK"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {t.sla?.status || "WITHIN_SLA"}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleOpenAssignModal(t)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-[11px] font-bold shadow-sm transition"
-                          >
-                            <UserCheck className="h-3 w-3" />
-                            <span>{t.assigned_officer_name ? "Manage Staff" : "Assign Personnel"}</span>
-                          </button>
-                          <button
-                            onClick={() => handleOpenTicket(t.id)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition"
-                          >
-                            <Eye className="h-3 w-3" />
-                            <span>Details</span>
-                          </button>
-                        </div>
-                      </td>
+          {filteredTickets.length === 0 ? (
+            <EmptyState
+              title="No tickets in queue"
+              description={`There are currently no tickets matching the selected filter in ${currentUser?.department_id?.replace("_", " ") || "your department"}.`}
+              actionText="Reset Filter"
+              onAction={() => setAssignmentFilter("ALL")}
+            />
+          ) : (
+            <>
+              {/* Desktop / Tablet Compact Table */}
+              <div className="responsive-table-container custom-scrollbar hidden md:block rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs min-w-[780px]">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="py-2.5 px-3.5">Tracking ID</th>
+                      <th className="py-2.5 px-3.5">Issue Summary</th>
+                      <th className="py-2.5 px-3.5">Location</th>
+                      <th className="py-2.5 px-3.5">Filed (IST)</th>
+                      <th className="py-2.5 px-3.5">Priority</th>
+                      <th className="py-2.5 px-3.5">Assignment Status</th>
+                      <th className="py-2.5 px-3.5">Assigned Personnel</th>
+                      <th className="py-2.5 px-3.5">SLA State</th>
+                      <th className="py-2.5 px-3.5 text-right">Action</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {filteredTickets.map((t) => (
+                      <tr
+                        key={t.id}
+                        onClick={() => handleOpenTicket(t.id)}
+                        className="hover:bg-slate-50/80 cursor-pointer transition"
+                      >
+                        <td className="py-2.5 px-3.5 font-mono font-bold text-indigo-600 whitespace-nowrap">
+                          {t.tracking_number}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-semibold text-slate-900 max-w-xs truncate">
+                          {t.issue_summary}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-600 whitespace-nowrap">
+                          {t.location_name || <span className="text-rose-500">Missing</span>}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap text-[11px]">
+                          {formatDateIST(t.created_at)}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <PriorityBadge priority={t.priority} size="sm" />
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          {getAssignmentBadge(t)}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          {t.assigned_officer_name ? (
+                            <div className="flex items-center gap-2">
+                              <div className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                {t.assigned_officer_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-800 leading-tight">{t.assigned_officer_name}</div>
+                                <div className="text-[10px] text-slate-400">{t.assigned_personnel?.designation || "Field Officer"}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">Pending assignment</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <SLABadge status={t.sla?.status} size="sm" />
+                        </td>
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleOpenAssignModal(t)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-[11px] font-bold shadow-xs transition"
+                            >
+                              <UserCheck className="h-3 w-3" />
+                              <span>{t.assigned_officer_name ? "Manage Staff" : "Assign"}</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenTicket(t.id)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition"
+                            >
+                              <Eye className="h-3 w-3" />
+                              <span>Details</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Responsive Cards (< md) */}
+              <div className="block md:hidden space-y-3">
+                {filteredTickets.map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => handleOpenTicket(t.id)}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-indigo-300 transition cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="font-mono text-xs font-bold text-indigo-600">
+                        {t.tracking_number}
+                      </span>
+                      <PriorityBadge priority={t.priority} size="sm" />
+                    </div>
+                    <h3 className="font-bold text-xs text-slate-900 line-clamp-2">
+                      {t.issue_summary}
+                    </h3>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5">
+                      <span className="truncate">📍 {t.location_name || "Missing location"}</span>
+                      <span className="shrink-0 ml-2">{formatDateIST(t.created_at)}</span>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap text-xs">
+                      {getAssignmentBadge(t)}
+                      {t.assigned_officer_name ? (
+                        <span className="text-[11px] text-slate-700 font-semibold truncate max-w-[150px]">
+                          Staff: {t.assigned_officer_name}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">Unassigned</span>
+                      )}
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                      <SLABadge status={t.sla?.status} size="sm" />
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleOpenAssignModal(t)}
+                          className="inline-flex items-center gap-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-[11px] font-bold shadow-xs transition"
+                        >
+                          <UserCheck className="h-3 w-3" />
+                          <span>{t.assigned_officer_name ? "Manage Staff" : "Assign"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenTicket(t.id)}
+                          className="inline-flex items-center gap-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 text-[11px] font-bold transition"
+                        >
+                          <Eye className="h-3 w-3" />
+                          <span>Details</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </main>
 
@@ -1109,7 +1119,7 @@ export default function DepartmentPage() {
                   <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                     {selectedTicket.tracking_number}
                   </span>
-                  {getPriorityBadge(selectedTicket.priority)}
+                  <PriorityBadge priority={selectedTicket.priority} size="sm" />
                 </div>
                 <h2 className="text-xl font-black text-slate-900">{selectedTicket.issue_summary}</h2>
               </div>
@@ -1136,11 +1146,15 @@ export default function DepartmentPage() {
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs mb-6">
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Current Status</span>
-                <span className="font-bold text-slate-800 mt-1 block">{selectedTicket.status}</span>
+                <div className="mt-1">
+                  <StatusBadge status={selectedTicket.status} size="sm" />
+                </div>
               </div>
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">SLA State</span>
-                <span className="font-bold text-slate-800 mt-1 block">{selectedTicket.sla?.status || "WITHIN_SLA"}</span>
+                <div className="mt-1">
+                  <SLABadge status={selectedTicket.sla?.status} size="sm" />
+                </div>
               </div>
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Location</span>
